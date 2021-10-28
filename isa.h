@@ -30,15 +30,33 @@ struct Params{
  * @param argc pocet argumentu
  * @param argv argumenty
  * @param params parametry pro beh programu
- * @return ERR v pripade chyby, SUCC - uspech, jinak pozice prikazu (command)
+ * @return int ERR v pripade chyby, SUCC - uspech, jinak pozice prikazu (command)
  */
 int arg_process(int argc, char** argv, Params &params);
 
 /**
+ * @brief zpracovani prikazu
+ *
+ * @param argc pocet argumentu
+ * @param argv argumenty
+ * @param cmd_pos pozice prikazu v argc
+ * @return int ERR v pripade chybne zadaneho prikazu, jinak SUCC
+ */
+int cmd_process(int argc, char** argv, int cmd_pos);
+
+/**
  * @brief kontroluje zda zadani retezec neni prikaz
  * @param argv testovany retezec
- * @return TRUE pokud je to prikaz, jinak FALSE
+ * @return bool TRUE pokud je to prikaz, jinak FALSE
  */
 bool is_command(char *arg);
+
+/**
+ * @brief vraci pocet argumentu prikazu
+ *
+ * @param cmd prikaz
+ * @return uint pocet argumentu
+ */
+uint cmd_args_num(char *cmd);
 
 #endif
