@@ -7,26 +7,26 @@
  */
 
 #include <arpa/inet.h>
-#include <cerrno>
-#include <cstdio>
-#include <cstdlib>
-#include <cstring>
-#include <ctime>
+// #include <cerrno>
+// #include <cstdio>
+// #include <cstdlib>
+// #include <cstring>
+// #include <ctime>
 #include <getopt.h>
-#include <ifaddrs.h>
+// #include <ifaddrs.h>
 #include <iostream>
-#include <netdb.h>
-#include <netinet/if_ether.h>
-#include <netinet/in.h>
-#include <netinet/ip.h>
-#include <netinet/ip6.h>
-#include <netinet/tcp.h>
-#include <netinet/udp.h>
-#include <new>
+// #include <netdb.h>
+// #include <netinet/if_ether.h>
+// #include <netinet/in.h>
+// #include <netinet/ip.h>
+// #include <netinet/ip6.h>
+// #include <netinet/tcp.h>
+// #include <netinet/udp.h>
+// #include <new>
 #include <string>
 #include <sys/socket.h>
-#include <sys/types.h>
-#include <vector>
+// #include <sys/types.h>
+// #include <vector>
 
 #include "isa.h"
 
@@ -121,6 +121,9 @@ string b64decode(const void* data, const size_t len)
 int main(int argc, char *argv[])
 {
     Params par = {.addr = nullptr, .port = nullptr, .help = false};
+    int command_index = 0;
+    char *command = nullptr;
+    int command_argc = 0;
 
     int retval = arg_process(argc, argv, par);
 
@@ -134,6 +137,7 @@ int main(int argc, char *argv[])
 
     if (retval != SUCC){
     // retval != SUCC a retval != ERR, tzn. retval je pozice mozneho prikazu
+        command_index = retval;
         if (cmd_process(argc, argv, retval) == ERR)
         // chybne zadany prikaz, nebo neplatny pocet argumentu
             return EXIT_FAILURE;
@@ -145,8 +149,14 @@ int main(int argc, char *argv[])
     // implicitni nastaveni
     if (par.addr == nullptr) par.addr = (char *)"localhost";
     if (par.port == nullptr) par.port = (char *)"32323";
+    command = argv[command_index];
 
-    cout << "addr: " << par.addr << ", port: " << par.port << ", command: " << argv[retval] << endl;
+    command_argc = cmd_args_num(command);
+    if (connect_to_server(par, command,
+        command_argc ? argv[command_index + 1] : nullptr, command_argc) == ERR)
+        return EXIT_FAILURE;
+
+    cout << "addr: " << par.addr << ", port: " << par.port << ", command: " << command << endl;
     return EXIT_SUCCESS;
 }
 
@@ -266,4 +276,59 @@ uint cmd_args_num(char *cmd)
         return 1;
     else // list, logout
         return 0;
+}
+
+int connect_to_server(Params &params, char *command, char *args, int argc)
+{
+    struct sockaddr_in server;
+    server.sin_family = AF_INET;
+    server.sin_port = htons(50000);
+    server.sin_addr.s_addr = inet_addr(params.addr);
+    char client_message[2000];
+    char server_message[2000];
+
+    memset(server_message,'\0',sizeof(server_message));
+    memset(client_message,'\0',sizeof(client_message));
+
+    int sd = socket(AF_INET, SOCK_STREAM, 0);
+
+    if(sd < 0){
+        printf("Unable to create socket\n");
+        return -1;
+    }
+
+    printf("Socket created successfully\n");
+
+    if(connect(sd, (struct sockaddr*)&server, sizeof(server)) < 0){
+        printf("Unable to connect\n");
+        return -1;
+    }
+
+    if(send(sd, client_message, strlen(client_message), 0) < 0){
+        printf("Unable to send message\n");
+        return -1;
+    }
+
+    if(recv(sd, server_message, sizeof(server_message), 0) < 0){
+        printf("Error while receiving server's msg\n");
+        return -1;
+    }
+
+    close(sd);
+
+    //cout << "connected = addr: " << params.addr << ", port: " << params.port << ", command: " << command << endl;
+    return SUCC;
+}
+
+int str2int(char* str, int &num)
+{
+    errno = 0;
+    char* end;
+
+    num = (int)strtol(str, &end, 10);
+
+    if (((errno == ERANGE  || errno == EINVAL || errno != 0) && num == 0) || *end)
+        return ERR;
+
+    return SUCC;
 }

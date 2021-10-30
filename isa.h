@@ -59,4 +59,16 @@ bool is_command(char *arg);
  */
 uint cmd_args_num(char *cmd);
 
+/**
+ * @brief spojeni se serverem
+ *
+ * @param params parametry, ip adresa a port
+ * @param command prikaz, ktery se ma vykonat
+ * @param args argumenty prikazu
+ * @return int ERR v pripade nepodarene komunikace, jinak SUCC
+ */
+int connect_to_server(Params &params, char *command, char *args, int argc);
+
+int str2int(char* str, int &num);
+
 #endif
