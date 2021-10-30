@@ -13,7 +13,9 @@
 #define ERR -1
 
 #define PORT_MAX 65535  //!< maximalni hodnota portu
-#define PORT_MIN 0  //!< minimalni hodnota portu
+#define PORT_MIN 1   //!< minimalni hodnota portu
+
+#define MSG_MAX_LEN 1000
 
 /**
  * @brief parametry z prikazove radky

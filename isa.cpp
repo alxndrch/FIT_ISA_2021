@@ -7,26 +7,23 @@
  */
 
 #include <arpa/inet.h>
-// #include <cerrno>
-// #include <cstdio>
-// #include <cstdlib>
-// #include <cstring>
-// #include <ctime>
+#include <cerrno>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <climits>
 #include <getopt.h>
-// #include <ifaddrs.h>
 #include <iostream>
-// #include <netdb.h>
-// #include <netinet/if_ether.h>
-// #include <netinet/in.h>
+#include <netdb.h>
+#include <netinet/in.h>
 // #include <netinet/ip.h>
 // #include <netinet/ip6.h>
 // #include <netinet/tcp.h>
 // #include <netinet/udp.h>
-// #include <new>
 #include <string>
 #include <sys/socket.h>
-// #include <sys/types.h>
-// #include <vector>
+#include <sys/types.h>
+#include <unistd.h>
 
 #include "isa.h"
 
@@ -38,13 +35,15 @@ using namespace std;
 static const unsigned char base64_table[65] =
     "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
-static const int B64index[256] = { 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
-0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
-0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, 62, 63, 62, 62, 63, 52, 53, 54, 55,
-56, 57, 58, 59, 60, 61,  0,  0,  0,  0,  0,  0,  0,  0,  1,  2,  3,  4,  5,  6,
-7,  8,  9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25,  0,
-0,  0,  0, 63,  0, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40,
-41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51 };
+
+static const int B64index[256] = 
+    { 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
+      0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
+      0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, 62, 63, 62, 62, 63, 52, 53, 54, 55,
+      56, 57, 58, 59, 60, 61,  0,  0,  0,  0,  0,  0,  0,  0,  1,  2,  3,  4,  5,  6,
+      7,  8,  9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25,  0,
+      0,  0,  0, 63,  0, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40,
+      41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51 };
 
 string base64_encode(const unsigned char *src, size_t len)
 {
@@ -141,9 +140,6 @@ int main(int argc, char *argv[])
         if (cmd_process(argc, argv, retval) == ERR)
         // chybne zadany prikaz, nebo neplatny pocet argumentu
             return EXIT_FAILURE;
-    }else{
-        // nebyl zadan prikaz na prikaz
-        return EXIT_FAILURE;
     }
 
     // implicitni nastaveni
@@ -232,19 +228,39 @@ int arg_process(int argc, char** argv, Params &params)
 
     if (optind < argc)
         return optind;
+    else if (optind == argc){
+        cerr << "client: expects <command> [<args>] ... on the command line, given 0 arguments\n";
+        return ERR;
+    }
 
     return SUCC;
 }
 
 int cmd_process(int argc, char** argv, int cmd_pos)
 {
-    if (!is_command(argv[cmd_pos]))
-        return ERR;
+    if (is_command(argv[cmd_pos])){
+        int args_num = cmd_args_num(argv[cmd_pos]);
 
-    int args_num = cmd_args_num(argv[cmd_pos]);
-
-    if (args_num != (argc - cmd_pos - 1))
+        if (args_num != (argc - cmd_pos - 1)){
+            string check(argv[cmd_pos]);
+                if (check == "register")
+                    cerr << "register <username> <password>" << endl;
+                else if (check == "login")
+                    cerr << "login <username> <password>" << endl;
+                else if (check == "list")
+                    cerr << "list" << endl;
+                else if (check == "send")
+                    cerr << "send <recipient> <subject> <body>" << endl;
+                else if (check == "fetch")
+                    cerr << "fetch <id>" << endl;
+                else if (check == "logout")
+                    cerr << "logout" << endl;
+            return ERR;
+        }
+    }else{
+        cerr << "unknown command" << endl;
         return ERR;
+    }
 
     return SUCC;
 }
@@ -280,43 +296,105 @@ uint cmd_args_num(char *cmd)
 
 int connect_to_server(Params &params, char *command, char *args, int argc)
 {
-    struct sockaddr_in server;
-    server.sin_family = AF_INET;
-    server.sin_port = htons(50000);
-    server.sin_addr.s_addr = inet_addr(params.addr);
-    char client_message[2000];
-    char server_message[2000];
+    int port = 0;
+    int err = str2int(params.port, port);
 
-    memset(server_message,'\0',sizeof(server_message));
-    memset(client_message,'\0',sizeof(client_message));
+    if (err == ERR && port == 0){
+        cerr << "Port number is not a string\n";
+        return ERR;
+    }else if ((errno == ERANGE && (err == LONG_MIN || err == LONG_MAX )) 
+             || port < PORT_MIN || port > PORT_MAX){
+        cerr << "tcp-connect: contract violation\n";
+        cerr << "  expected: port-number?\n";
+        cerr << "  given: " << params.port << endl;
+        return ERR;
+    }
+    
+    struct addrinfo server;
+    struct addrinfo *l_list;
 
-    int sd = socket(AF_INET, SOCK_STREAM, 0);
+    memset(&server, 0, sizeof(server));
+    server.ai_family = AF_UNSPEC;
+    server.ai_socktype = SOCK_STREAM;
 
-    if(sd < 0){
-        printf("Unable to create socket\n");
-        return -1;
+    if ((err = getaddrinfo(params.addr, params.port, &server, &l_list)) != 0) {
+        cerr << "tcp-connect: host not found\n";
+        cerr << "  hostname: " << params.addr << endl;
+        cerr << "  port number: " << params.port << endl;
+        cerr << "  system error: " << gai_strerror(err) << "; gai_err=" << err << endl;
+        return ERR;
+    }
+    
+    int sd;
+    for (struct addrinfo *ip = l_list; ip != nullptr; ip = ip->ai_next) {
+        sd = socket(ip->ai_family, SOCK_STREAM, 0);
+        cout << ip->ai_family << endl;
+        if (sd < 0)
+            continue;
+        else if (ip->ai_next == nullptr){
+            cerr << "Unable to create socket\n";
+            freeaddrinfo(l_list);
+            close(sd);
+            return ERR;
+        }
+
+        if (connect(sd, ip->ai_addr, ip->ai_addrlen) == 0)
+            break;
+        else if (ip->ai_next == nullptr){
+            cerr << "tcp-connect: connection failed\n";
+            cerr << "  hostname: " << params.addr << endl;
+            cerr << "  port number: " << port << endl;
+            cerr << "  system error: " << strerror(errno) << "; errno=" << errno << endl;
+            freeaddrinfo(l_list);
+            close(sd);
+            return ERR;
+        }                
+
+        close(sd);
     }
 
-    printf("Socket created successfully\n");
+    /*
+    if(ip == nullptr)
+        return ERR;
+    else{
+        if (ip->ai_family == AF_INET){  // IPv4
+            struct sockaddr_in *ipv4 = (struct sockaddr_in *)ip->ai_addr;
+            cout << ntohs(ipv4->sin_port) << endl;
+        }else{  // IPv6
+            struct sockaddr_in6 *ipv6 = (struct sockaddr_in6 *)ip->ai_addr;
+            cout << ntohs(ipv6->sin6_port) << endl;
+        }
+    }*/
 
-    if(connect(sd, (struct sockaddr*)&server, sizeof(server)) < 0){
-        printf("Unable to connect\n");
-        return -1;
+    /*
+    int sd = socket(ip->ai_family, SOCK_STREAM, 0);
+
+    if(sd < 0){
+        cerr << "Unable to create socket\n";
+        return ERR;
+    }
+
+    if(connect(sd, ip->ai_addr, ip->ai_addrlen) < 0){
+        cerr << "tcp-connect: connection failed\n";
+        cerr << "  hostname: " << params.addr << endl;
+        cerr << "  port number: " << port << endl;
+        cerr << "  system error: " << strerror(errno) << "; errno=" << errno << endl;
+        return ERR;
     }
 
     if(send(sd, client_message, strlen(client_message), 0) < 0){
-        printf("Unable to send message\n");
-        return -1;
+        cerr << "Unable to send message\n";
+        return ERR;
     }
 
     if(recv(sd, server_message, sizeof(server_message), 0) < 0){
-        printf("Error while receiving server's msg\n");
-        return -1;
+        cerr << "Unable to receive message\n";
+        return ERR;
     }
 
     close(sd);
+    */
 
-    //cout << "connected = addr: " << params.addr << ", port: " << params.port << ", command: " << command << endl;
     return SUCC;
 }
 
@@ -327,7 +405,7 @@ int str2int(char* str, int &num)
 
     num = (int)strtol(str, &end, 10);
 
-    if (((errno == ERANGE  || errno == EINVAL || errno != 0) && num == 0) || *end)
+    if (((errno == ERANGE || errno == EINVAL || errno != 0) && num == 0) || *end)
         return ERR;
 
     return SUCC;
