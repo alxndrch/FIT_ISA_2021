@@ -6,12 +6,15 @@
  * @date 28.10 2021
  */
 
+// TODO: testovat soubor na prazdny radek
+
 #include <arpa/inet.h>
 #include <cerrno>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <climits>
+#include <fstream>
 #include <getopt.h>
 #include <iostream>
 #include <netdb.h>
@@ -367,31 +370,21 @@ int send_message(int sockfd, int cmd, char **args)
     char send_str[MSG_MAX_LEN];
     memset(send_str, '\0', MSG_MAX_LEN);
 
-    build_request(cmd, args, send_str);
+    if (build_request(cmd, args, send_str) == ERR)
+        return ERR;
 
-    cout << "builded: " << send_str << endl;
+    int total_written = 0;
+    while (total_written < strlen(send_str)){
+        int written = send(sockfd, &send_str[total_written], 
+                           strlen(send_str) - total_written, 0);
 
-    /*
-    if (cmd == CMD_REGISTER){
-        int total_written = 0;
-        int index = 0;
-        int written = 0;
-
-        char msg[MSG_MAX_LEN] = "(register \"user\" \"dXNlcg==\")\0";
-        
-        while (total_written < strlen(msg)){
-            int written = send(sockfd, &msg[index], 5, 0);
-
-            if (written == -1)
-            {
-                cerr << "error" << endl;
-                break;
-            }
-            index += written;
-            total_written += written;
-            cout << msg << ", " << strlen(msg) << ", " << index << endl;
+        if (written == -1)
+        {
+            cerr << "error" << endl;
+            break;
         }
-    }*/
+        total_written += written;
+    }
 
     return SUCC;
 }
@@ -401,31 +394,53 @@ int recv_message(int sockfd, int cmd)
     char recv_str[MSG_MAX_LEN];
     memset(recv_str, '\0', MSG_MAX_LEN);
 
-    /*
-    if(recv(sd, server_message, sizeof(server_message), 0) < 0){
+    if(recv(sockfd, recv_str, MSG_MAX_LEN, 0) < 0){
         cerr << "Unable to receive message\n";
         return ERR;
     }
-    */
+
+    if (parse_response(cmd, recv_str) == ERR)
+        return ERR;
+
     return SUCC;
 }
 
 int build_request(int cmd, char **args, char *request)
 {
+    char *test = (char *)"base64 USER";
+    string logged_user;
+
+    if (cmd == CMD_SEND || cmd == CMD_FETCH || cmd == CMD_LIST || cmd == CMD_LOGOUT){
+        ifstream login_token("login-token");
+        
+        if(!login_token.is_open()){
+            cerr << "Not logged in\n";
+            return ERR;
+        }
+        
+        getline(login_token, logged_user);
+
+        login_token.close();
+    }
+
     if (cmd == CMD_REGISTER){
-        cout << args[0] << endl;
-        cout << args[1] << endl;
-
+        sprintf(request, "(register \"%s\" \"%s\")", args[0], 
+                    base64_encode((const unsigned char *)args[1], strlen(args[1])).c_str());
     }else if (cmd == CMD_LOGIN){
-
+        sprintf(request, "(login \"%s\" \"%s\")", args[0], 
+            base64_encode((const unsigned char *)args[1], strlen(args[1])).c_str());
     }else if (cmd == CMD_SEND){
-
+        sprintf(request, "(send %s \"%s\" \"%s\" \"%s\")", 
+                                logged_user.c_str(), args[0], args[1], args[2]);
     }else if (cmd == CMD_FETCH){
-
+        sprintf(request, "(fetch %s %s)", 
+                                logged_user.c_str(), args[0]);
     }else if (cmd == CMD_LIST){
-
+        sprintf(request, "(list %s)", 
+                                logged_user.c_str());
     }else{ // logout
-
+        sprintf(request, "(logout %s)", 
+                                logged_user.c_str());
     }
 
     return SUCC;
@@ -446,6 +461,43 @@ int parse_response(int cmd, char *response)
     }else{ // logout
 
     }
+
+    /*
+    register 
+        (ok "registered user user") SUCCESS: registered user user
+        (err "user already registered") ERROR: user already registered
+    login
+        (err "incorrect password") ERROR: incorrect password
+        (err "unknown user") ERROR: unknown user
+        (ok "user logged in" "dXNlcjE2MzU2OTcyNTc2ODguNjE4Mg==") SUCCESS: user logged in
+    send
+        (ok "message sent") SUCCESS: message sent
+        (err "unknown recipient") ERROR: unknown recipient
+        Not logged in
+    fetch
+        Not logged in
+        ERROR: id asd is not a number
+        (err "wrong arguments") ERROR: wrong arguments // id jako -1
+        (err "message id not found") ERROR: message id not found  // id jako 100
+        (ok ("user" "subject" "body")) SUCCESS:
+
+                                       From: user
+                                       Subject: subject
+
+                                       body
+    list
+        Not logged in
+        (ok ((1 "user" "subject"))) SUCCESS:
+                                    1:
+                                      From: user
+                                      Subject: subject
+
+        
+
+    logout
+        (ok "logged out") SUCCESS: logged out
+        Not logged in  // 2x po sobe logout
+    */
 
     return SUCC;
 }
