@@ -16,10 +16,6 @@
 #include <iostream>
 #include <netdb.h>
 #include <netinet/in.h>
-// #include <netinet/ip.h>
-// #include <netinet/ip6.h>
-// #include <netinet/tcp.h>
-// #include <netinet/udp.h>
 #include <string>
 #include <sys/socket.h>
 #include <sys/types.h>
@@ -119,10 +115,8 @@ string b64decode(const void* data, const size_t len)
 
 int main(int argc, char *argv[])
 {
-    Params par = {.addr = nullptr, .port = nullptr, .help = false};
+    Params par = {.addr = nullptr, .port = nullptr, .cmd = CMD_INVALID, .help = false};
     int command_index = 0;
-    char *command = nullptr;
-    int command_argc = 0;
 
     int retval = arg_process(argc, argv, par);
 
@@ -137,7 +131,7 @@ int main(int argc, char *argv[])
     if (retval != SUCC){
     // retval != SUCC a retval != ERR, tzn. retval je pozice mozneho prikazu
         command_index = retval;
-        if (cmd_process(argc, argv, retval) == ERR)
+        if (cmd_process(argc, argv, command_index, par) == ERR)
         // chybne zadany prikaz, nebo neplatny pocet argumentu
             return EXIT_FAILURE;
     }
@@ -145,14 +139,10 @@ int main(int argc, char *argv[])
     // implicitni nastaveni
     if (par.addr == nullptr) par.addr = (char *)"localhost";
     if (par.port == nullptr) par.port = (char *)"32323";
-    command = argv[command_index];
 
-    command_argc = cmd_args_num(command);
-    if (connect_to_server(par, command,
-        command_argc ? argv[command_index + 1] : nullptr, command_argc) == ERR)
+    if (connect_to_server(par, cmd_args_num(par.cmd) ? &argv[command_index + 1] : nullptr) == ERR)
         return EXIT_FAILURE;
 
-    cout << "addr: " << par.addr << ", port: " << par.port << ", command: " << command << endl;
     return EXIT_SUCCESS;
 }
 
@@ -236,24 +226,24 @@ int arg_process(int argc, char** argv, Params &params)
     return SUCC;
 }
 
-int cmd_process(int argc, char** argv, int cmd_pos)
+int cmd_process(int argc, char** argv, int cmd_pos, Params &params)
 {
-    if (is_command(argv[cmd_pos])){
-        int args_num = cmd_args_num(argv[cmd_pos]);
+    int cmd = CMD_INVALID;
+    if ((cmd = is_command(argv[cmd_pos])) != CMD_INVALID){
+        int args_num = cmd_args_num(cmd);
 
         if (args_num != (argc - cmd_pos - 1)){
-            string check(argv[cmd_pos]);
-                if (check == "register")
+                if (cmd == CMD_REGISTER)
                     cerr << "register <username> <password>" << endl;
-                else if (check == "login")
+                else if (cmd == CMD_LOGIN)
                     cerr << "login <username> <password>" << endl;
-                else if (check == "list")
+                else if (cmd == CMD_LIST)
                     cerr << "list" << endl;
-                else if (check == "send")
+                else if (cmd == CMD_SEND)
                     cerr << "send <recipient> <subject> <body>" << endl;
-                else if (check == "fetch")
+                else if (cmd == CMD_FETCH)
                     cerr << "fetch <id>" << endl;
-                else if (check == "logout")
+                else if (cmd == CMD_LOGOUT)
                     cerr << "logout" << endl;
             return ERR;
         }
@@ -262,40 +252,45 @@ int cmd_process(int argc, char** argv, int cmd_pos)
         return ERR;
     }
 
+    params.cmd = cmd;
     return SUCC;
 }
 
-bool is_command(char *arg)
+int is_command(char *arg)
 {
     string check(arg);
 
-    if (check == "register"
-     || check == "login"
-     || check == "list"
-     || check == "send"
-     || check == "fetch"
-     || check == "logout")
-            return true;
-
-    return false;
-}
-
-uint cmd_args_num(char *cmd)
-{
-    string check(cmd);
-
-    if (check == "register" || check == "login")
-        return 2;
+    if (check == "register")
+        return CMD_REGISTER;
+    else if (check == "login")
+        return CMD_LOGIN;
+    else if (check == "list")
+        return CMD_LIST;
     else if (check == "send")
-        return 3;
+        return CMD_SEND;
     else if (check == "fetch")
-        return 1;
-    else // list, logout
-        return 0;
+        return CMD_FETCH;
+    else if (check == "logout")
+        return CMD_LOGOUT;
+
+    return CMD_INVALID;
 }
 
-int connect_to_server(Params &params, char *command, char *args, int argc)
+uint cmd_args_num(int cmd)
 {
+    if (cmd == CMD_REGISTER|| cmd == CMD_LOGIN )
+        return CMD_ARGC_2;
+    else if (cmd == CMD_SEND)
+        return CMD_ARGC_3;
+    else if (cmd == CMD_FETCH)
+        return CMD_ARGC_1;
+    else // list, logout
+        return CMD_ARGC_0;
+}
+
+int connect_to_server(Params &params, char **args)
+{
+    int sd;
     int port = 0;
     int err = str2int(params.port, port);
 
@@ -325,17 +320,16 @@ int connect_to_server(Params &params, char *command, char *args, int argc)
         return ERR;
     }
     
-    int sd;
     for (struct addrinfo *ip = l_list; ip != nullptr; ip = ip->ai_next) {
         sd = socket(ip->ai_family, SOCK_STREAM, 0);
-        cout << ip->ai_family << endl;
-        if (sd < 0)
+        if (sd < 0){
+            if (ip->ai_next == nullptr){
+                cerr << "Unable to create socket\n";
+                freeaddrinfo(l_list);
+                close(sd);
+                return ERR;
+            }
             continue;
-        else if (ip->ai_next == nullptr){
-            cerr << "Unable to create socket\n";
-            freeaddrinfo(l_list);
-            close(sd);
-            return ERR;
         }
 
         if (connect(sd, ip->ai_addr, ip->ai_addrlen) == 0)
@@ -353,47 +347,105 @@ int connect_to_server(Params &params, char *command, char *args, int argc)
         close(sd);
     }
 
-    /*
-    if(ip == nullptr)
-        return ERR;
-    else{
-        if (ip->ai_family == AF_INET){  // IPv4
-            struct sockaddr_in *ipv4 = (struct sockaddr_in *)ip->ai_addr;
-            cout << ntohs(ipv4->sin_port) << endl;
-        }else{  // IPv6
-            struct sockaddr_in6 *ipv6 = (struct sockaddr_in6 *)ip->ai_addr;
-            cout << ntohs(ipv6->sin6_port) << endl;
-        }
-    }*/
-
-    /*
-    int sd = socket(ip->ai_family, SOCK_STREAM, 0);
-
-    if(sd < 0){
-        cerr << "Unable to create socket\n";
+    if(send_message(sd, params.cmd, args) == ERR){
+        close(sd);
         return ERR;
     }
 
-    if(connect(sd, ip->ai_addr, ip->ai_addrlen) < 0){
-        cerr << "tcp-connect: connection failed\n";
-        cerr << "  hostname: " << params.addr << endl;
-        cerr << "  port number: " << port << endl;
-        cerr << "  system error: " << strerror(errno) << "; errno=" << errno << endl;
-        return ERR;
-    }
-
-    if(send(sd, client_message, strlen(client_message), 0) < 0){
-        cerr << "Unable to send message\n";
-        return ERR;
-    }
-
-    if(recv(sd, server_message, sizeof(server_message), 0) < 0){
-        cerr << "Unable to receive message\n";
+    if(recv_message(sd, params.cmd) == ERR){
+        close(sd);
         return ERR;
     }
 
     close(sd);
+
+    return SUCC;
+}
+
+int send_message(int sockfd, int cmd, char **args)
+{
+    char send_str[MSG_MAX_LEN];
+    memset(send_str, '\0', MSG_MAX_LEN);
+
+    build_request(cmd, args, send_str);
+
+    cout << "builded: " << send_str << endl;
+
+    /*
+    if (cmd == CMD_REGISTER){
+        int total_written = 0;
+        int index = 0;
+        int written = 0;
+
+        char msg[MSG_MAX_LEN] = "(register \"user\" \"dXNlcg==\")\0";
+        
+        while (total_written < strlen(msg)){
+            int written = send(sockfd, &msg[index], 5, 0);
+
+            if (written == -1)
+            {
+                cerr << "error" << endl;
+                break;
+            }
+            index += written;
+            total_written += written;
+            cout << msg << ", " << strlen(msg) << ", " << index << endl;
+        }
+    }*/
+
+    return SUCC;
+}
+
+int recv_message(int sockfd, int cmd)
+{
+    char recv_str[MSG_MAX_LEN];
+    memset(recv_str, '\0', MSG_MAX_LEN);
+
+    /*
+    if(recv(sd, server_message, sizeof(server_message), 0) < 0){
+        cerr << "Unable to receive message\n";
+        return ERR;
+    }
     */
+    return SUCC;
+}
+
+int build_request(int cmd, char **args, char *request)
+{
+    if (cmd == CMD_REGISTER){
+        cout << args[0] << endl;
+        cout << args[1] << endl;
+
+    }else if (cmd == CMD_LOGIN){
+
+    }else if (cmd == CMD_SEND){
+
+    }else if (cmd == CMD_FETCH){
+
+    }else if (cmd == CMD_LIST){
+
+    }else{ // logout
+
+    }
+
+    return SUCC;
+}
+
+int parse_response(int cmd, char *response)
+{
+    if (cmd == CMD_REGISTER){
+
+    }else if (cmd == CMD_LOGIN){
+
+    }else if (cmd == CMD_SEND){
+
+    }else if (cmd == CMD_FETCH){
+
+    }else if (cmd == CMD_LIST){
+
+    }else{ // logout
+
+    }
 
     return SUCC;
 }

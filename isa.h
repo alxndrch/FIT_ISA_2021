@@ -15,7 +15,20 @@
 #define PORT_MAX 65535  //!< maximalni hodnota portu
 #define PORT_MIN 1   //!< minimalni hodnota portu
 
-#define MSG_MAX_LEN 1000
+#define CMD_INVALID -1
+#define CMD_REGISTER 10
+#define CMD_LOGIN 11
+#define CMD_LOGOUT 12
+#define CMD_SEND 13
+#define CMD_FETCH 14
+#define CMD_LIST 15
+
+#define CMD_ARGC_3 3
+#define CMD_ARGC_2 2
+#define CMD_ARGC_1 1
+#define CMD_ARGC_0 0
+
+#define MSG_MAX_LEN 16384
 
 /**
  * @brief parametry z prikazove radky
@@ -23,6 +36,7 @@
 struct Params{
     char *addr;
     char *port;
+    int cmd;
     bool help;
 };
 
@@ -44,14 +58,14 @@ int arg_process(int argc, char** argv, Params &params);
  * @param cmd_pos pozice prikazu v argc
  * @return int ERR v pripade chybne zadaneho prikazu, jinak SUCC
  */
-int cmd_process(int argc, char** argv, int cmd_pos);
+int cmd_process(int argc, char** argv, int cmd_pos, Params &params);
 
 /**
  * @brief kontroluje zda zadani retezec neni prikaz
  * @param argv testovany retezec
- * @return bool TRUE pokud je to prikaz, jinak FALSE
+ * @return int konstanta vyjadrujici prikaz, jinak CMD_INVALID
  */
-bool is_command(char *arg);
+int is_command(char *arg);
 
 /**
  * @brief vraci pocet argumentu prikazu
@@ -59,17 +73,24 @@ bool is_command(char *arg);
  * @param cmd prikaz
  * @return uint pocet argumentu
  */
-uint cmd_args_num(char *cmd);
+uint cmd_args_num(int cmd);
 
 /**
  * @brief spojeni se serverem
  *
- * @param params parametry, ip adresa a port
- * @param command prikaz, ktery se ma vykonat
+ * @param params parametry, ip adresa, port a prikaz
  * @param args argumenty prikazu
  * @return int ERR v pripade nepodarene komunikace, jinak SUCC
  */
-int connect_to_server(Params &params, char *command, char *args, int argc);
+int connect_to_server(Params &params, char **args);
+
+int send_message(int sockfd, int cmd, char **args);
+
+int recv_message(int sockfd, int cmd);
+
+int build_request(int cmd, char **args, char *request);
+
+int parse_response(int cmd, char *response);
 
 int str2int(char* str, int &num);
 
