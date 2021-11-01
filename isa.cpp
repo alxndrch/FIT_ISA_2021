@@ -6,7 +6,8 @@
  * @date 28.10 2021
  */
 
-// TODO: testovat soubor na prazdny radek
+// TODO: 
+//  testovat soubor na prazdny radek
 
 #include <arpa/inet.h>
 #include <cerrno>
@@ -380,7 +381,7 @@ int send_message(int sockfd, int cmd, char **args)
 
         if (written == -1)
         {
-            cerr << "error" << endl;
+            cerr << "Error: " << strerror(errno) << "; errno=" << errno << endl;
             break;
         }
         total_written += written;
@@ -392,14 +393,15 @@ int send_message(int sockfd, int cmd, char **args)
 int recv_message(int sockfd, int cmd)
 {
     char recv_str[MSG_MAX_LEN];
+    int received_len = 0;
     memset(recv_str, '\0', MSG_MAX_LEN);
 
-    if(recv(sockfd, recv_str, MSG_MAX_LEN, 0) < 0){
-        cerr << "Unable to receive message\n";
+    if((received_len = recv(sockfd, recv_str, MSG_MAX_LEN, 0)) < 0){
+        cerr << "Error: " << strerror(errno) << "; errno=" << errno << endl;
         return ERR;
     }
 
-    if (parse_response(cmd, recv_str) == ERR)
+    if (parse_response(cmd, recv_str, received_len) == ERR)
         return ERR;
 
     return SUCC;
@@ -407,7 +409,6 @@ int recv_message(int sockfd, int cmd)
 
 int build_request(int cmd, char **args, char *request)
 {
-    char *test = (char *)"base64 USER";
     string logged_user;
 
     if (cmd == CMD_SEND || cmd == CMD_FETCH || cmd == CMD_LIST || cmd == CMD_LOGOUT){
@@ -433,6 +434,12 @@ int build_request(int cmd, char **args, char *request)
         sprintf(request, "(send %s \"%s\" \"%s\" \"%s\")", 
                                 logged_user.c_str(), args[0], args[1], args[2]);
     }else if (cmd == CMD_FETCH){
+        int fetch_id = 0;
+        int err = str2int(args[0], fetch_id);
+        if (err == ERR && fetch_id == 0){
+            cerr << "id " << args[0] <<" is not a number\n";
+            return ERR;
+        }
         sprintf(request, "(fetch %s %s)", 
                                 logged_user.c_str(), args[0]);
     }else if (cmd == CMD_LIST){
@@ -446,39 +453,47 @@ int build_request(int cmd, char **args, char *request)
     return SUCC;
 }
 
-int parse_response(int cmd, char *response)
+int parse_response(int cmd, char *response, int response_len)
 {
-    if (cmd == CMD_REGISTER){
+    cout << "begin:" << response << ":endl" << endl;
+    int status_skip = MSG_ERR_STATUS_LEN;
 
-    }else if (cmd == CMD_LOGIN){
+    if(strncmp(response, "(ok ", 4) == 0){
+        cout << "SUCCESS:";
+        status_skip = MSG_SUCC_STATUS_LEN;
+    }else
+        cout << "ERROR:";
 
-    }else if (cmd == CMD_SEND){
+    if (status_skip == MSG_ERR_STATUS_LEN){ // kdyz jde o chybovou hlasku
+        response[response_len-1 - SKIP_BYTE] = '\0'; // string truncate
+        cout << " " << (response + status_skip + SKIP_BYTE) << endl;
+    }else{
+        if (cmd == CMD_FETCH){
 
-    }else if (cmd == CMD_FETCH){
+        }else if (cmd == CMD_LIST){
 
-    }else if (cmd == CMD_LIST){
+        }else if (cmd == CMD_LOGIN){
 
-    }else{ // logout
-
+        }
     }
-
     /*
     register 
-        (ok "registered user user") SUCCESS: registered user user
-        (err "user already registered") ERROR: user already registered
+        ---DONE: (ok "registered user user") SUCCESS: registered user user
+        ---DONE: (err "user already registered") ERROR: user already registered
     login
-        (err "incorrect password") ERROR: incorrect password
-        (err "unknown user") ERROR: unknown user
+        ---DONE: (err "incorrect password") ERROR: incorrect password
+        ---DONE: (err "unknown user") ERROR: unknown user
         (ok "user logged in" "dXNlcjE2MzU2OTcyNTc2ODguNjE4Mg==") SUCCESS: user logged in
+        ---DONE: (err "incorrect login token") ERROR: incorrect login token  // KDYZ JE NEPLATNY LOGIN TOKEN
     send
-        (ok "message sent") SUCCESS: message sent
-        (err "unknown recipient") ERROR: unknown recipient
-        Not logged in
+        ---DONE: (ok "message sent") SUCCESS: message sent
+        ---DONE: (err "unknown recipient") ERROR: unknown recipient
+        ---DONE: Not logged in
     fetch
-        Not logged in
-        ERROR: id asd is not a number
-        (err "wrong arguments") ERROR: wrong arguments // id jako -1
-        (err "message id not found") ERROR: message id not found  // id jako 100
+        ---DONE: Not logged in
+        ---DONE: ERROR: id asd is not a number
+        ---DONE: (err "wrong arguments") ERROR: wrong arguments // id jako -1
+        ---DONE: (err "message id not found") ERROR: message id not found  // id jako 100
         (ok ("user" "subject" "body")) SUCCESS:
 
                                        From: user
@@ -486,17 +501,16 @@ int parse_response(int cmd, char *response)
 
                                        body
     list
-        Not logged in
+        ---DONE: Not logged in
         (ok ((1 "user" "subject"))) SUCCESS:
                                     1:
                                       From: user
                                       Subject: subject
 
-        
-
+    
     logout
-        (ok "logged out") SUCCESS: logged out
-        Not logged in  // 2x po sobe logout
+        ---DONE: (ok "logged out") SUCCESS: logged out
+        ---DONE: Not logged in  // 2x po sobe logout
     */
 
     return SUCC;
@@ -506,11 +520,13 @@ int str2int(char* str, int &num)
 {
     errno = 0;
     char* end;
+    long ret = 0;
 
-    num = (int)strtol(str, &end, 10);
+    ret = strtol(str, &end, 10);
 
-    if (((errno == ERANGE || errno == EINVAL || errno != 0) && num == 0) || *end)
+    if (errno || *end != '\0' || ret < INT_MIN || ret > INT_MAX)
         return ERR;
 
+    num = (int)ret;
     return SUCC;
 }

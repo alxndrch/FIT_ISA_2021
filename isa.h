@@ -30,6 +30,10 @@
 
 #define MSG_MAX_LEN 16384
 
+#define SKIP_BYTE 1
+#define MSG_ERR_STATUS_LEN 5
+#define MSG_SUCC_STATUS_LEN 4
+
 /**
  * @brief parametry z prikazove radky
  */
@@ -90,7 +94,7 @@ int recv_message(int sockfd, int cmd);
 
 int build_request(int cmd, char **args, char *request);
 
-int parse_response(int cmd, char *response);
+int parse_response(int cmd, char *response, int response_len);
 
 int str2int(char* str, int &num);
 
