@@ -8,6 +8,7 @@
 
 // TODO: 
 //  testovat soubor na prazdny radek
+//  posilat " jako \"
 
 #include <arpa/inet.h>
 #include <cerrno>
@@ -455,7 +456,7 @@ int build_request(int cmd, char **args, char *request)
 
 int parse_response(int cmd, char *response, int response_len)
 {
-    cout << "begin:" << response << ":endl" << endl;
+    //cout << "begin:" << response << ":endl" << endl;
     int status_skip = MSG_ERR_STATUS_LEN;
 
     if(strncmp(response, "(ok ", 4) == 0){
@@ -468,12 +469,84 @@ int parse_response(int cmd, char *response, int response_len)
         response[response_len-1 - SKIP_BYTE] = '\0'; // string truncate
         cout << " " << (response + status_skip + SKIP_BYTE) << endl;
     }else{
+        int c_index = status_skip + SKIP_BYTE;
         if (cmd == CMD_FETCH){
+            cout << endl << endl;
+            int arg = 0;
+
+            while(arg < FETCH_ARGS){
+                int msg_state = MSG_START;
+                int msg_start_index = c_index;
+                int msg_end_index = c_index;
+
+                while(msg_state != MSG_END){
+                    if (response[c_index] == '\"'){
+                        if (msg_state == MSG_START || msg_state == MSG_ESCAPE_SEQ){
+                            msg_state = MSG_TEXT;
+                        }else if (msg_state == MSG_TEXT){
+                            msg_state = MSG_END;
+                            msg_end_index = c_index;
+                        }
+                    }else if (response[c_index] == '\\'){
+                        if (msg_state != MSG_ESCAPE_SEQ)
+                            msg_state = MSG_ESCAPE_SEQ;
+                        else
+                            msg_state = MSG_TEXT;
+
+                        //response[c_index] = '\b';
+                    }else{
+                        if (msg_state == MSG_ESCAPE_SEQ){
+                            msg_state = MSG_TEXT;
+
+                            //if (response[c_index] == 'n')
+                            //   response[c_index] = '\n';
+                        }
+                    }
+                    c_index++;
+                }
+
+                
+                if(arg == 0)
+                    cout << "From: "; 
+                else if (arg == 1)
+                    cout << "Subject: ";
+                else
+                    cout << endl;
+
+                response[msg_end_index] = '\0'; // string truncate
+                printf("%s", response + msg_start_index+SKIP_BYTE);
+
+                if (arg < 2)
+                    cout << endl;
+
+                arg++;
+                c_index++;
+            }
 
         }else if (cmd == CMD_LIST){
+            if(strncmp(response, "(ok ())", 8) == 0)
+                cout << endl;
+            else{
+                int par_cnt = 1;
+
+                while(par_cnt > 0){
+                    c_index++;
+                    if (response[c_index] == '(')
+                        par_cnt++;
+                    else if (response[c_index] == ')')
+                        par_cnt--;
+                    else if (response[c_index] == ' ')
+                        continue;
+                }
+
+
+                //(ok ((1 "user" "subject") (2 "user" "subject") (3 "user" "subject") (4 "user" "subject") (5 "user" "subject") (6 "user" "subject") (7 "user" "subject") (8 "user" "subject") (9 "user" "subject") (10 "user" "subject") (11 "user" "subject") (12 "user" "subject") (13 "user" "subject") (14 "user" "subject") (15 "user" "subject") (16 "user" "subject") (17 "user" "subject") (18 "user" "subject") (19 "user" "subject") (20 "user" "subject") (21 "user" "subject") (22 "user" "subject") (23 "user" "subject") (24 "user" "subject") (25 "user" "subject") (26 "user" "subject") (27 "user" "subject") (28 "user" "subject")))
+                
+            }
 
         }else if (cmd == CMD_LOGIN){
-
+            if(strncmp(response, "(ok \"user logged in\"", 20) == 0)
+                cout << " user logged in" << endl;
         }
     }
     /*
@@ -483,7 +556,7 @@ int parse_response(int cmd, char *response, int response_len)
     login
         ---DONE: (err "incorrect password") ERROR: incorrect password
         ---DONE: (err "unknown user") ERROR: unknown user
-        (ok "user logged in" "dXNlcjE2MzU2OTcyNTc2ODguNjE4Mg==") SUCCESS: user logged in
+        ---DONE: (ok "user logged in" "dXNlcjE2MzU2OTcyNTc2ODguNjE4Mg==") SUCCESS: user logged in
         ---DONE: (err "incorrect login token") ERROR: incorrect login token  // KDYZ JE NEPLATNY LOGIN TOKEN
     send
         ---DONE: (ok "message sent") SUCCESS: message sent
@@ -494,7 +567,7 @@ int parse_response(int cmd, char *response, int response_len)
         ---DONE: ERROR: id asd is not a number
         ---DONE: (err "wrong arguments") ERROR: wrong arguments // id jako -1
         ---DONE: (err "message id not found") ERROR: message id not found  // id jako 100
-        (ok ("user" "subject" "body")) SUCCESS:
+        ---DONE: (ok ("user" "subject" "body")) SUCCESS:
 
                                        From: user
                                        Subject: subject
@@ -530,3 +603,29 @@ int str2int(char* str, int &num)
     num = (int)ret;
     return SUCC;
 }
+
+int text_fsm(char *str, int &index, int state)
+{
+    while(state != MSG_END){
+        if (response[index] == '\"'){
+            if (state == MSG_START || state == MSG_ESCAPE_SEQ){
+                state = MSG_TEXT;
+            }else if (msg_state == MSG_TEXT){
+                state = MSG_END;
+                state = index;
+            }
+        }else if (response[index] == '\\'){
+            if (state != MSG_ESCAPE_SEQ)
+                state = MSG_ESCAPE_SEQ;
+            else
+                state = MSG_TEXT;
+        }else{
+            if (state == MSG_ESCAPE_SEQ){
+                state = MSG_TEXT;
+            }
+        }
+        index++;
+    }
+}
+
+// (["'])(?:(?=(\\?))\2.)*?\1

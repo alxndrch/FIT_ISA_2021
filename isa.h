@@ -28,11 +28,20 @@
 #define CMD_ARGC_1 1
 #define CMD_ARGC_0 0
 
+#define FETCH_ARGS 3
+#define LIST_ARGS 3
+
 #define MSG_MAX_LEN 16384
 
 #define SKIP_BYTE 1
 #define MSG_ERR_STATUS_LEN 5
 #define MSG_SUCC_STATUS_LEN 4
+
+#define MSG_TEXT 20
+#define MSG_ESCAPE_SEQ 21
+#define MSG_NOT_TEXT 22
+#define MSG_START 23
+#define MSG_END 24
 
 /**
  * @brief parametry z prikazove radky
