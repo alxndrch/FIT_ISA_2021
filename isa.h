@@ -107,4 +107,6 @@ int parse_response(int cmd, char *response, int response_len);
 
 int str2int(char* str, int &num);
 
+int text_fsm(char *str, int &index, int &end_index, int state);
+
 #endif

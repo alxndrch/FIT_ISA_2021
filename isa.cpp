@@ -456,7 +456,6 @@ int build_request(int cmd, char **args, char *request)
 
 int parse_response(int cmd, char *response, int response_len)
 {
-    //cout << "begin:" << response << ":endl" << endl;
     int status_skip = MSG_ERR_STATUS_LEN;
 
     if(strncmp(response, "(ok ", 4) == 0){
@@ -465,47 +464,23 @@ int parse_response(int cmd, char *response, int response_len)
     }else
         cout << "ERROR:";
 
-    if (status_skip == MSG_ERR_STATUS_LEN){ // kdyz jde o chybovou hlasku
+    if ((status_skip == MSG_ERR_STATUS_LEN) // kdyz jde o chybovou hlasku
+        || (cmd != CMD_FETCH && cmd != CMD_LIST && cmd != CMD_LOGIN)){ // nebo se nejdena o prikazy fetch, list, login
         response[response_len-1 - SKIP_BYTE] = '\0'; // string truncate
         cout << " " << (response + status_skip + SKIP_BYTE) << endl;
     }else{
         int c_index = status_skip + SKIP_BYTE;
+        int arg = 0;
         if (cmd == CMD_FETCH){
             cout << endl << endl;
-            int arg = 0;
 
             while(arg < FETCH_ARGS){
                 int msg_state = MSG_START;
                 int msg_start_index = c_index;
                 int msg_end_index = c_index;
 
-                while(msg_state != MSG_END){
-                    if (response[c_index] == '\"'){
-                        if (msg_state == MSG_START || msg_state == MSG_ESCAPE_SEQ){
-                            msg_state = MSG_TEXT;
-                        }else if (msg_state == MSG_TEXT){
-                            msg_state = MSG_END;
-                            msg_end_index = c_index;
-                        }
-                    }else if (response[c_index] == '\\'){
-                        if (msg_state != MSG_ESCAPE_SEQ)
-                            msg_state = MSG_ESCAPE_SEQ;
-                        else
-                            msg_state = MSG_TEXT;
+                text_fsm(response, c_index, msg_end_index, msg_state);
 
-                        //response[c_index] = '\b';
-                    }else{
-                        if (msg_state == MSG_ESCAPE_SEQ){
-                            msg_state = MSG_TEXT;
-
-                            //if (response[c_index] == 'n')
-                            //   response[c_index] = '\n';
-                        }
-                    }
-                    c_index++;
-                }
-
-                
                 if(arg == 0)
                     cout << "From: "; 
                 else if (arg == 1)
@@ -514,7 +489,7 @@ int parse_response(int cmd, char *response, int response_len)
                     cout << endl;
 
                 response[msg_end_index] = '\0'; // string truncate
-                printf("%s", response + msg_start_index+SKIP_BYTE);
+                cout << (response + msg_start_index+SKIP_BYTE);
 
                 if (arg < 2)
                     cout << endl;
@@ -527,21 +502,68 @@ int parse_response(int cmd, char *response, int response_len)
             if(strncmp(response, "(ok ())", 8) == 0)
                 cout << endl;
             else{
+                cout << endl;
                 int par_cnt = 1;
 
                 while(par_cnt > 0){
-                    c_index++;
                     if (response[c_index] == '(')
                         par_cnt++;
                     else if (response[c_index] == ')')
                         par_cnt--;
-                    else if (response[c_index] == ' ')
+                    else if (response[c_index] == ' '){
+                        c_index++;
                         continue;
-                }
+                    }else{
+                        int msg_start_index = c_index;
+                        while(response[c_index] != ' '){
+                            c_index++;
+                        }
+                        int msg_end_index = c_index;
+                        response[msg_end_index] = '\0'; // string truncate
+                        cout << (response + msg_start_index) << ":" << endl;
 
+                        c_index++;
+                        while(arg < LIST_ARGS-1){
+                            msg_start_index = c_index;
+                            msg_end_index = c_index;
+                            int msg_state = MSG_START;
 
-                //(ok ((1 "user" "subject") (2 "user" "subject") (3 "user" "subject") (4 "user" "subject") (5 "user" "subject") (6 "user" "subject") (7 "user" "subject") (8 "user" "subject") (9 "user" "subject") (10 "user" "subject") (11 "user" "subject") (12 "user" "subject") (13 "user" "subject") (14 "user" "subject") (15 "user" "subject") (16 "user" "subject") (17 "user" "subject") (18 "user" "subject") (19 "user" "subject") (20 "user" "subject") (21 "user" "subject") (22 "user" "subject") (23 "user" "subject") (24 "user" "subject") (25 "user" "subject") (26 "user" "subject") (27 "user" "subject") (28 "user" "subject")))
-                
+                            text_fsm(response, c_index, msg_end_index, msg_state);
+
+                            if(arg == 0)
+                                cout << "  From: "; 
+                            else if (arg == 1)
+                                cout << "  Subject: ";
+
+                            response[msg_end_index] = '\0'; // string truncate
+                            cout << (response + msg_start_index+SKIP_BYTE);
+                            cout << endl;
+
+                            // msg_end_index je vzdy index na koncovou uvozovku 
+                            // "user"
+                            //      ^                                                 
+                            // c_index po funckci text_fsm ma hodnotu msg_end_index + 1
+                            // pokud nedoslo k precteni posledni argumentu prikazu list (subject)
+                            // bude se jednat o index na ' ' za predchozi argument
+
+                            arg++;
+                            c_index++;
+                            // inkrementaci hodnoty c_index se dostaneme na novou pocatecni "
+                            // "user" "subject"
+                            //        ^
+                        }
+                        arg = 0;
+                        c_index-= 2;
+                        // pokud dostlo k precteni vsech argumtu
+                        // c_index je index na posledni zavorku
+                        // "user" "subject"))
+                        //                  ^
+                        // musime tedy c_index odecist o 2
+                        // abychom se dostali pred zavorky
+                        // a snizili pocitadlo zavorek par_cnt
+                    }
+                    c_index++;
+                }                
             }
 
         }else if (cmd == CMD_LOGIN){
@@ -549,6 +571,51 @@ int parse_response(int cmd, char *response, int response_len)
                 cout << " user logged in" << endl;
         }
     }
+    return SUCC;
+}
+
+int str2int(char* str, int &num)
+{
+    errno = 0;
+    char* end;
+    long ret = 0;
+
+    ret = strtol(str, &end, 10);
+
+    if (errno || *end != '\0' || ret < INT_MIN || ret > INT_MAX)
+        return ERR;
+
+    num = (int)ret;
+    return SUCC;
+}
+
+int text_fsm(char *str, int &index, int &end_index, int state)
+{
+    while(state != MSG_END){
+        if (str[index] == '\"'){
+            if (state == MSG_START || state == MSG_ESCAPE_SEQ){
+                state = MSG_TEXT;
+            }else if (state == MSG_TEXT){
+                state = MSG_END;
+                end_index = index;
+            }
+        }else if (str[index] == '\\'){
+            if (state != MSG_ESCAPE_SEQ)
+                state = MSG_ESCAPE_SEQ;
+            else
+                state = MSG_TEXT;
+        }else{
+            if (state == MSG_ESCAPE_SEQ){
+                state = MSG_TEXT;
+            }
+        }
+        index++;
+    }
+
+    return SUCC;
+}
+
+// (["'])(?:(?=(\\?))\2.)*?\1
     /*
     register 
         ---DONE: (ok "registered user user") SUCCESS: registered user user
@@ -585,47 +652,3 @@ int parse_response(int cmd, char *response, int response_len)
         ---DONE: (ok "logged out") SUCCESS: logged out
         ---DONE: Not logged in  // 2x po sobe logout
     */
-
-    return SUCC;
-}
-
-int str2int(char* str, int &num)
-{
-    errno = 0;
-    char* end;
-    long ret = 0;
-
-    ret = strtol(str, &end, 10);
-
-    if (errno || *end != '\0' || ret < INT_MIN || ret > INT_MAX)
-        return ERR;
-
-    num = (int)ret;
-    return SUCC;
-}
-
-int text_fsm(char *str, int &index, int state)
-{
-    while(state != MSG_END){
-        if (response[index] == '\"'){
-            if (state == MSG_START || state == MSG_ESCAPE_SEQ){
-                state = MSG_TEXT;
-            }else if (msg_state == MSG_TEXT){
-                state = MSG_END;
-                state = index;
-            }
-        }else if (response[index] == '\\'){
-            if (state != MSG_ESCAPE_SEQ)
-                state = MSG_ESCAPE_SEQ;
-            else
-                state = MSG_TEXT;
-        }else{
-            if (state == MSG_ESCAPE_SEQ){
-                state = MSG_TEXT;
-            }
-        }
-        index++;
-    }
-}
-
-// (["'])(?:(?=(\\?))\2.)*?\1
