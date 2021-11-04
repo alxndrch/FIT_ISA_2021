@@ -8,7 +8,6 @@
 
 // TODO: 
 //  testovat soubor na prazdny radek
-//  posilat " jako \"
 
 #include <arpa/inet.h>
 #include <cerrno>
@@ -27,96 +26,9 @@
 #include <unistd.h>
 
 #include "isa.h"
+#include "base64.cpp"
 
 using namespace std;
-
-// https://nachtimwald.com/2017/11/18/base64-encode-and-decode-in-c/
-// https://stackoverflow.com/a/41094722
-
-static const unsigned char base64_table[65] =
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-
-
-static const int B64index[256] = 
-    { 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
-      0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
-      0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, 62, 63, 62, 62, 63, 52, 53, 54, 55,
-      56, 57, 58, 59, 60, 61,  0,  0,  0,  0,  0,  0,  0,  0,  1,  2,  3,  4,  5,  6,
-      7,  8,  9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25,  0,
-      0,  0,  0, 63,  0, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40,
-      41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51 };
-
-string base64_encode(const unsigned char *src, size_t len)
-{
-    unsigned char *out, *pos;
-    const unsigned char *end, *in;
-
-    size_t olen;
-
-    olen = 4*((len + 2) / 3); /* 3-byte blocks to 4-byte */
-
-    if (olen < len)
-        return string(); /* integer overflow */
-
-    string outStr;
-    outStr.resize(olen);
-    out = (unsigned char*)&outStr[0];
-
-    end = src + len;
-    in = src;
-    pos = out;
-    while (end - in >= 3) {
-        *pos++ = base64_table[in[0] >> 2];
-        *pos++ = base64_table[((in[0] & 0x03) << 4) | (in[1] >> 4)];
-        *pos++ = base64_table[((in[1] & 0x0f) << 2) | (in[2] >> 6)];
-        *pos++ = base64_table[in[2] & 0x3f];
-        in += 3;
-    }
-
-    if (end - in) {
-        *pos++ = base64_table[in[0] >> 2];
-        if (end - in == 1) {
-            *pos++ = base64_table[(in[0] & 0x03) << 4];
-            *pos++ = '=';
-        }
-        else {
-            *pos++ = base64_table[((in[0] & 0x03) << 4) |
-                (in[1] >> 4)];
-            *pos++ = base64_table[(in[1] & 0x0f) << 2];
-        }
-        *pos++ = '=';
-    }
-
-    return outStr;
-}
-
-string b64decode(const void* data, const size_t len)
-{
-    unsigned char* p = (unsigned char*)data;
-    int pad = len > 0 && (len % 4 || p[len - 1] == '=');
-    const size_t L = ((len + 3) / 4 - pad) * 4;
-    std::string str(L / 4 * 3 + pad, '\0');
-
-    for (size_t i = 0, j = 0; i < L; i += 4)
-    {
-        int n = B64index[p[i]] << 18 | B64index[p[i + 1]] << 12 | B64index[p[i + 2]] << 6 | B64index[p[i + 3]];
-        str[j++] = n >> 16;
-        str[j++] = n >> 8 & 0xFF;
-        str[j++] = n & 0xFF;
-    }
-    if (pad)
-    {
-        int n = B64index[p[L]] << 18 | B64index[p[L + 1]] << 12;
-        str[str.size() - 1] = n >> 16;
-
-        if (len > L + 2 && p[L + 2] != '=')
-        {
-            n |= B64index[p[L + 2]] << 6;
-            str.push_back(n >> 8 & 0xFF);
-        }
-    }
-    return str;
-}
 
 int main(int argc, char *argv[])
 {
@@ -614,41 +526,3 @@ int text_fsm(char *str, int &index, int &end_index, int state)
 
     return SUCC;
 }
-
-// (["'])(?:(?=(\\?))\2.)*?\1
-    /*
-    register 
-        ---DONE: (ok "registered user user") SUCCESS: registered user user
-        ---DONE: (err "user already registered") ERROR: user already registered
-    login
-        ---DONE: (err "incorrect password") ERROR: incorrect password
-        ---DONE: (err "unknown user") ERROR: unknown user
-        ---DONE: (ok "user logged in" "dXNlcjE2MzU2OTcyNTc2ODguNjE4Mg==") SUCCESS: user logged in
-        ---DONE: (err "incorrect login token") ERROR: incorrect login token  // KDYZ JE NEPLATNY LOGIN TOKEN
-    send
-        ---DONE: (ok "message sent") SUCCESS: message sent
-        ---DONE: (err "unknown recipient") ERROR: unknown recipient
-        ---DONE: Not logged in
-    fetch
-        ---DONE: Not logged in
-        ---DONE: ERROR: id asd is not a number
-        ---DONE: (err "wrong arguments") ERROR: wrong arguments // id jako -1
-        ---DONE: (err "message id not found") ERROR: message id not found  // id jako 100
-        ---DONE: (ok ("user" "subject" "body")) SUCCESS:
-
-                                       From: user
-                                       Subject: subject
-
-                                       body
-    list
-        ---DONE: Not logged in
-        (ok ((1 "user" "subject"))) SUCCESS:
-                                    1:
-                                      From: user
-                                      Subject: subject
-
-    
-    logout
-        ---DONE: (ok "logged out") SUCCESS: logged out
-        ---DONE: Not logged in  // 2x po sobe logout
-    */
