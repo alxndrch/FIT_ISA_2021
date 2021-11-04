@@ -6,9 +6,6 @@
  * @date 28.10 2021
  */
 
-// TODO: 
-//  testovat soubor na prazdny radek
-
 #include <arpa/inet.h>
 #include <cerrno>
 #include <cstdio>
@@ -501,7 +498,7 @@ int str2int(char* str, int &num)
     return SUCC;
 }
 
-int text_fsm(char *str, int &index, int &end_index, int state)
+void text_fsm(char *str, int &index, int &end_index, int state)
 {
     while(state != MSG_END){
         if (str[index] == '\"'){
@@ -523,6 +520,4 @@ int text_fsm(char *str, int &index, int &end_index, int state)
         }
         index++;
     }
-
-    return SUCC;
 }
