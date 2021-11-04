@@ -30,7 +30,7 @@ using namespace std;
 int main(int argc, char *argv[])
 {
     Params par = {.addr = nullptr, .port = nullptr, .cmd = CMD_INVALID, .help = false};
-    int command_index = 0;
+    int command_index = 0; // index prikazu v argv
 
     int retval = arg_process(argc, argv, par);
 
@@ -147,6 +147,7 @@ int cmd_process(int argc, char** argv, int cmd_pos, Params &params)
         int args_num = cmd_args_num(cmd);
 
         if (args_num != (argc - cmd_pos - 1)){
+            // neplatny pocet argumentu u zadaneho prikazu
                 if (cmd == CMD_REGISTER)
                     cerr << "register <username> <password>" << endl;
                 else if (cmd == CMD_LOGIN)
@@ -162,6 +163,7 @@ int cmd_process(int argc, char** argv, int cmd_pos, Params &params)
             return ERR;
         }
     }else{
+        // neplatny prikaz
         cerr << "unknown command" << endl;
         return ERR;
     }
@@ -192,7 +194,7 @@ int is_command(char *arg)
 
 uint cmd_args_num(int cmd)
 {
-    if (cmd == CMD_REGISTER|| cmd == CMD_LOGIN )
+    if (cmd == CMD_REGISTER|| cmd == CMD_LOGIN)
         return CMD_ARGC_2;
     else if (cmd == CMD_SEND)
         return CMD_ARGC_3;
@@ -209,10 +211,12 @@ int connect_to_server(Params &params, char **args)
     int err = str2int(params.port, port);
 
     if (err == ERR && port == 0){
+        // neplatna hodnota portu
         cerr << "Port number is not a string\n";
         return ERR;
     }else if ((errno == ERANGE && (err == LONG_MIN || err == LONG_MAX )) 
              || port < PORT_MIN || port > PORT_MAX){
+        // hodnota portu je mimo interval
         cerr << "tcp-connect: contract violation\n";
         cerr << "  expected: port-number?\n";
         cerr << "  given: " << params.port << endl;
@@ -227,6 +231,7 @@ int connect_to_server(Params &params, char **args)
     server.ai_socktype = SOCK_STREAM;
 
     if ((err = getaddrinfo(params.addr, params.port, &server, &l_list)) != 0) {
+        // neplatna hodnota adresy
         cerr << "tcp-connect: host not found\n";
         cerr << "  hostname: " << params.addr << endl;
         cerr << "  port number: " << params.port << endl;
@@ -249,6 +254,7 @@ int connect_to_server(Params &params, char **args)
         if (connect(sd, ip->ai_addr, ip->ai_addrlen) == 0)
             break;
         else if (ip->ai_next == nullptr){
+            // chyba pri pripojeni k serveru
             cerr << "tcp-connect: connection failed\n";
             cerr << "  hostname: " << params.addr << endl;
             cerr << "  port number: " << port << endl;
@@ -260,12 +266,12 @@ int connect_to_server(Params &params, char **args)
 
         close(sd);
     }
-
+    // vytvorani a odeslani pozadavku
     if(send_message(sd, params.cmd, args) == ERR){
         close(sd);
         return ERR;
     }
-
+    // prijeti a vypis odpovedi  
     if(recv_message(sd, params.cmd) == ERR){
         close(sd);
         return ERR;
@@ -281,6 +287,7 @@ int send_message(int sockfd, int cmd, char **args)
     char send_str[MSG_MAX_LEN];
     memset(send_str, '\0', MSG_MAX_LEN);
 
+    // vytvoreni pozadavku podle formatu protoklu
     if (build_request(cmd, args, send_str) == ERR)
         return ERR;
 
@@ -289,8 +296,8 @@ int send_message(int sockfd, int cmd, char **args)
         int written = send(sockfd, &send_str[total_written], 
                            strlen(send_str) - total_written, 0);
 
-        if (written == -1)
-        {
+        if (written == -1){
+            // chyba pri odesilani zpravy
             cerr << "Error: " << strerror(errno) << "; errno=" << errno << endl;
             break;
         }
@@ -307,10 +314,11 @@ int recv_message(int sockfd, int cmd)
     memset(recv_str, '\0', MSG_MAX_LEN);
 
     if((received_len = recv(sockfd, recv_str, MSG_MAX_LEN, 0)) < 0){
+        // chyba pri prijeti odpovedi
         cerr << "Error: " << strerror(errno) << "; errno=" << errno << endl;
         return ERR;
     }
-
+    // vypis odpovedi
     if (parse_response(cmd, recv_str, received_len) == ERR)
         return ERR;
 
@@ -322,6 +330,7 @@ int build_request(int cmd, char **args, char *request)
     string logged_user;
 
     if (cmd == CMD_SEND || cmd == CMD_FETCH || cmd == CMD_LIST || cmd == CMD_LOGOUT){
+        // zjisteni login tokenu prihlaseneho uzivatele
         ifstream login_token("login-token");
         
         if(!login_token.is_open()){
@@ -333,7 +342,7 @@ int build_request(int cmd, char **args, char *request)
 
         login_token.close();
     }
-
+    // vytvareni pozadavku
     if (cmd == CMD_REGISTER){
         sprintf(request, "(register \"%s\" \"%s\")", args[0], 
                     base64_encode((const unsigned char *)args[1], strlen(args[1])).c_str());
@@ -347,6 +356,7 @@ int build_request(int cmd, char **args, char *request)
         int fetch_id = 0;
         int err = str2int(args[0], fetch_id);
         if (err == ERR && fetch_id == 0){
+            // neplate id zadane pro FETCH
             cerr << "id " << args[0] <<" is not a number\n";
             return ERR;
         }
@@ -379,6 +389,7 @@ int parse_response(int cmd, char *response, int response_len)
         cout << " " << (response + status_skip + SKIP_BYTE) << endl;
     }else{
         int c_index = status_skip + SKIP_BYTE;
+        // status_skip + SKIP_BYTE preskoceni az na prvni "
         int arg = 0;
         if (cmd == CMD_FETCH){
             cout << endl << endl;
@@ -412,7 +423,7 @@ int parse_response(int cmd, char *response, int response_len)
                 cout << endl;
             else{
                 cout << endl;
-                int par_cnt = 1;
+                int par_cnt = 1; // pocitadlo zavorek
 
                 while(par_cnt > 0){
                     if (response[c_index] == '(')
@@ -425,13 +436,14 @@ int parse_response(int cmd, char *response, int response_len)
                     }else{
                         int msg_start_index = c_index;
                         while(response[c_index] != ' '){
+                            // zpracovani id 
                             c_index++;
                         }
                         int msg_end_index = c_index;
                         response[msg_end_index] = '\0'; // string truncate
                         cout << (response + msg_start_index) << ":" << endl;
 
-                        c_index++;
+                        c_index++; // posun na "
                         while(arg < LIST_ARGS-1){
                             msg_start_index = c_index;
                             msg_end_index = c_index;
