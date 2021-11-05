@@ -153,13 +153,13 @@ int cmd_process(int argc, char** argv, int cmd_pos, Params &params)
                 else if (cmd == CMD_LOGIN)
                     cerr << "login <username> <password>" << endl;
                 else if (cmd == CMD_LIST)
-                    cerr << "list" << endl;
+                    cerr << "list " << endl;
                 else if (cmd == CMD_SEND)
                     cerr << "send <recipient> <subject> <body>" << endl;
                 else if (cmd == CMD_FETCH)
                     cerr << "fetch <id>" << endl;
                 else if (cmd == CMD_LOGOUT)
-                    cerr << "logout" << endl;
+                    cerr << "logout " << endl;
             return ERR;
         }
     }else{
@@ -327,19 +327,16 @@ int recv_message(int sockfd, int cmd)
 
 int build_request(int cmd, char **args, char *request)
 {
-    string logged_user;
+    string logged_user; // login-token prihlaseneho uzivatele
 
     if (cmd == CMD_SEND || cmd == CMD_FETCH || cmd == CMD_LIST || cmd == CMD_LOGOUT){
         // zjisteni login tokenu prihlaseneho uzivatele
         ifstream login_token("login-token");
-        
         if(!login_token.is_open()){
             cerr << "Not logged in\n";
             return ERR;
         }
-        
         getline(login_token, logged_user);
-
         login_token.close();
     }
     // vytvareni pozadavku
@@ -355,9 +352,9 @@ int build_request(int cmd, char **args, char *request)
     }else if (cmd == CMD_FETCH){
         int fetch_id = 0;
         int err = str2int(args[0], fetch_id);
-        if (err == ERR && fetch_id == 0){
+        if (err == ERR && fetch_id == 0 && errno != ERANGE){
             // neplate id zadane pro FETCH
-            cerr << "id " << args[0] <<" is not a number\n";
+            cerr << "ERROR: id " << args[0] <<" is not a number\n";
             return ERR;
         }
         sprintf(request, "(fetch %s %s)", 
@@ -368,6 +365,10 @@ int build_request(int cmd, char **args, char *request)
     }else{ // logout
         sprintf(request, "(logout %s)", 
                                 logged_user.c_str());
+
+        if (access("login-token", F_OK) != -1){
+            remove("login-token");
+        }
     }
 
     return SUCC;
@@ -419,7 +420,7 @@ int parse_response(int cmd, char *response, int response_len)
             }
 
         }else if (cmd == CMD_LIST){
-            if(strncmp(response, "(ok ())", 8) == 0)
+            if(strncmp(response, "(ok ())", 7) == 0)
                 cout << endl;
             else{
                 cout << endl;
@@ -488,8 +489,18 @@ int parse_response(int cmd, char *response, int response_len)
             }
 
         }else if (cmd == CMD_LOGIN){
-            if(strncmp(response, "(ok \"user logged in\"", 20) == 0)
+            if(strncmp(response, "(ok \"user logged in\"", 20) == 0){
                 cout << " user logged in" << endl;
+                int login_token_begin = 20;
+                response[response_len-1] = '\0'; 
+
+                ofstream login_token;
+                login_token.open("login-token", fstream::in | fstream::trunc);
+                //string token_to_file(response + login_token_begin);
+                login_token << response + login_token_begin;
+
+                login_token.close();
+            }
         }
     }
     return SUCC;
