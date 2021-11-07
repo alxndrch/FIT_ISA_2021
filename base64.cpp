@@ -6,14 +6,14 @@
 * See README for more details.
 */
 
-// 2016-12-12 - Gaspard Petit : Slightly modified to return a std::string 
+// 2016-12-12 - Gaspard Petit : Slightly modified to return a std::string
 // instead of a buffer allocated with malloc.
 
 /*
 * Prevzato z:
 * Url: https://stackoverflow.com/a/41094722
 * Dne: 28.10.2021
-* 
+*
 * Autor zdrojoveho kodu: Jouni Malinen <j@w1.fi>
 */
 

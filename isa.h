@@ -37,7 +37,7 @@
 #define MSG_MAX_LEN 16384  // maximalni delka odeslate/obdrzene zpravy
 
 #define SKIP_BYTE 1  // posun o 1B ve zprave
-#define MSG_ERR_STATUS_LEN 5  // (err_ 
+#define MSG_ERR_STATUS_LEN 5  // (err_
 #define MSG_SUCC_STATUS_LEN 4  // (ok_
 
 /* konstany pro fsm */
@@ -143,7 +143,7 @@ int parse_response(int cmd, char *response, int response_len);
 /**
  * @brief konverze retezce na int
  *
- * @param str retezec 
+ * @param str retezec
  * @param num vysledna hodnota
  * @return int ERR pokud nastala pri konverzi chyba, jinak SUCC
  */
@@ -152,7 +152,7 @@ int str2int(char* str, int &num);
 /**
  * @brief fsm, ktery nalezne text mezi ""
  *
- * @param str retezec 
+ * @param str retezec
  * @param index pocatecni index
  * @param end_index index konce retezce
  * @param state pocatecni stav fsm

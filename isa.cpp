@@ -214,7 +214,7 @@ int connect_to_server(Params &params, char **args)
         // neplatna hodnota portu
         cerr << "Port number is not a string\n";
         return ERR;
-    }else if ((errno == ERANGE && (err == LONG_MIN || err == LONG_MAX )) 
+    }else if ((errno == ERANGE && (err == LONG_MIN || err == LONG_MAX ))
              || port < PORT_MIN || port > PORT_MAX){
         // hodnota portu je mimo interval
         cerr << "tcp-connect: contract violation\n";
@@ -222,7 +222,7 @@ int connect_to_server(Params &params, char **args)
         cerr << "  given: " << params.port << endl;
         return ERR;
     }
-    
+
     struct addrinfo server;
     struct addrinfo *l_list;
 
@@ -238,7 +238,7 @@ int connect_to_server(Params &params, char **args)
         cerr << "  system error: " << gai_strerror(err) << "; gai_err=" << err << endl;
         return ERR;
     }
-    
+
     for (struct addrinfo *ip = l_list; ip != nullptr; ip = ip->ai_next) {
         sd = socket(ip->ai_family, SOCK_STREAM, 0);
         if (sd < 0){
@@ -262,7 +262,7 @@ int connect_to_server(Params &params, char **args)
             freeaddrinfo(l_list);
             close(sd);
             return ERR;
-        }                
+        }
 
         close(sd);
     }
@@ -271,7 +271,7 @@ int connect_to_server(Params &params, char **args)
         close(sd);
         return ERR;
     }
-    // prijeti a vypis odpovedi  
+    // prijeti a vypis odpovedi
     if(recv_message(sd, params.cmd) == ERR){
         close(sd);
         return ERR;
@@ -293,7 +293,7 @@ int send_message(int sockfd, int cmd, char **args)
 
     int total_written = 0;
     while (total_written < strlen(send_str)){
-        int written = send(sockfd, &send_str[total_written], 
+        int written = send(sockfd, &send_str[total_written],
                            strlen(send_str) - total_written, 0);
 
         if (written == -1){
@@ -329,7 +329,8 @@ int build_request(int cmd, char **args, char *request)
 {
     string logged_user; // login-token prihlaseneho uzivatele
 
-    if (cmd == CMD_SEND || cmd == CMD_FETCH || cmd == CMD_LIST || cmd == CMD_LOGOUT){
+    if (cmd == CMD_SEND || cmd == CMD_FETCH
+        || cmd == CMD_LIST || cmd == CMD_LOGOUT){
         // zjisteni login tokenu prihlaseneho uzivatele
         ifstream login_token("login-token");
         if(!login_token.is_open()){
@@ -341,14 +342,17 @@ int build_request(int cmd, char **args, char *request)
     }
     // vytvareni pozadavku
     if (cmd == CMD_REGISTER){
-        sprintf(request, "(register \"%s\" \"%s\")", args[0], 
-                    base64_encode((const unsigned char *)args[1], strlen(args[1])).c_str());
+        sprintf(request, "(register \"%s\" \"%s\")", args[0],
+                    base64_encode((const unsigned char *)args[1],
+                    strlen(args[1])).c_str());
     }else if (cmd == CMD_LOGIN){
-        sprintf(request, "(login \"%s\" \"%s\")", args[0], 
-            base64_encode((const unsigned char *)args[1], strlen(args[1])).c_str());
+        sprintf(request, "(login \"%s\" \"%s\")", args[0],
+            base64_encode((const unsigned char *)args[1],
+            strlen(args[1])).c_str());
     }else if (cmd == CMD_SEND){
-        sprintf(request, "(send %s \"%s\" \"%s\" \"%s\")", 
-                                logged_user.c_str(), args[0], args[1], args[2]);
+        sprintf(request, "(send %s \"%s\" \"%s\" \"%s\")",
+                                logged_user.c_str(), args[0],
+                                args[1], args[2]);
     }else if (cmd == CMD_FETCH){
         int fetch_id = 0;
         int err = str2int(args[0], fetch_id);
@@ -357,13 +361,13 @@ int build_request(int cmd, char **args, char *request)
             cerr << "ERROR: id " << args[0] <<" is not a number\n";
             return ERR;
         }
-        sprintf(request, "(fetch %s %s)", 
+        sprintf(request, "(fetch %s %s)",
                                 logged_user.c_str(), args[0]);
     }else if (cmd == CMD_LIST){
-        sprintf(request, "(list %s)", 
+        sprintf(request, "(list %s)",
                                 logged_user.c_str());
     }else{ // logout
-        sprintf(request, "(logout %s)", 
+        sprintf(request, "(logout %s)",
                                 logged_user.c_str());
 
         if (access("login-token", F_OK) != -1){
@@ -384,8 +388,10 @@ int parse_response(int cmd, char *response, int response_len)
     }else
         cout << "ERROR:";
 
-    if ((status_skip == MSG_ERR_STATUS_LEN) // kdyz jde o chybovou hlasku
-        || (cmd != CMD_FETCH && cmd != CMD_LIST && cmd != CMD_LOGIN)){ // nebo se nejdena o prikazy fetch, list, login
+    if ((status_skip == MSG_ERR_STATUS_LEN)
+        || (cmd != CMD_FETCH && cmd != CMD_LIST && cmd != CMD_LOGIN)){
+        // kdyz jde o chybovou hlasku
+        // nebo se nejdena o prikazy fetch, list, login
         response[response_len-1 - SKIP_BYTE] = '\0'; // string truncate
         cout << " " << (response + status_skip + SKIP_BYTE) << endl;
     }else{
@@ -403,7 +409,7 @@ int parse_response(int cmd, char *response, int response_len)
                 text_fsm(response, c_index, msg_end_index, msg_state);
 
                 if(arg == 0)
-                    cout << "From: "; 
+                    cout << "From: ";
                 else if (arg == 1)
                     cout << "Subject: ";
                 else
@@ -437,7 +443,7 @@ int parse_response(int cmd, char *response, int response_len)
                     }else{
                         int msg_start_index = c_index;
                         while(response[c_index] != ' '){
-                            // zpracovani id 
+                            // zpracovani id
                             c_index++;
                         }
                         int msg_end_index = c_index;
@@ -453,7 +459,7 @@ int parse_response(int cmd, char *response, int response_len)
                             text_fsm(response, c_index, msg_end_index, msg_state);
 
                             if(arg == 0)
-                                cout << "  From: "; 
+                                cout << "  From: ";
                             else if (arg == 1)
                                 cout << "  Subject: ";
 
@@ -461,9 +467,9 @@ int parse_response(int cmd, char *response, int response_len)
                             cout << (response + msg_start_index+SKIP_BYTE);
                             cout << endl;
 
-                            // msg_end_index je vzdy index na koncovou uvozovku 
+                            // msg_end_index je vzdy index na koncovou uvozovku
                             // "user"
-                            //      ^                                                 
+                            //      ^
                             // c_index po funckci text_fsm ma hodnotu msg_end_index + 1
                             // pokud nedoslo k precteni posledni argumentu prikazu list (subject)
                             // bude se jednat o index na ' ' za predchozi argument
@@ -485,14 +491,14 @@ int parse_response(int cmd, char *response, int response_len)
                         // a snizili pocitadlo zavorek par_cnt
                     }
                     c_index++;
-                }                
+                }
             }
 
         }else if (cmd == CMD_LOGIN){
             if(strncmp(response, "(ok \"user logged in\"", 20) == 0){
                 cout << " user logged in" << endl;
                 int login_token_begin = 20;
-                response[response_len-1] = '\0'; 
+                response[response_len-1] = '\0';
 
                 ofstream login_token;
                 login_token.open("login-token", fstream::in | fstream::trunc);
