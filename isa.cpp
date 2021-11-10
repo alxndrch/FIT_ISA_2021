@@ -313,11 +313,13 @@ int recv_message(int sockfd, int cmd)
     int received_len = 0;
     memset(recv_str, '\0', MSG_MAX_LEN);
 
-    if((received_len = recv(sockfd, recv_str, MSG_MAX_LEN, 0)) < 0){
+    if((received_len = recv(sockfd, recv_str, MSG_MAX_LEN, MSG_WAITALL)) < 0){
         // chyba pri prijeti odpovedi
         cerr << "Error: " << strerror(errno) << "; errno=" << errno << endl;
         return ERR;
     }
+
+
     // vypis odpovedi
     if (parse_response(cmd, recv_str, received_len) == ERR)
         return ERR;
@@ -497,7 +499,7 @@ int parse_response(int cmd, char *response, int response_len)
         }else if (cmd == CMD_LOGIN){
             if(strncmp(response, "(ok \"user logged in\"", 20) == 0){
                 cout << " user logged in" << endl;
-                int login_token_begin = 20;
+                int login_token_begin = 21;
                 response[response_len-1] = '\0';
 
                 ofstream login_token;

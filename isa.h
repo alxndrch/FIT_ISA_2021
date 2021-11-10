@@ -34,7 +34,7 @@
 #define FETCH_ARGS 3  // "user" "subject" "body"
 #define LIST_ARGS 3  // "id" "user" "subject"
 
-#define MSG_MAX_LEN 16384  // maximalni delka odeslate/obdrzene zpravy
+#define MSG_MAX_LEN 32768  // maximalni delka odeslate/obdrzene zpravy
 
 #define SKIP_BYTE 1  // posun o 1B ve zprave
 #define MSG_ERR_STATUS_LEN 5  // (err_
