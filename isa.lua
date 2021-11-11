@@ -203,7 +203,7 @@ parse_response = function(buff, pinfo, tree)
                 -- fetch
                 lenght = pktlen - SHIFT_BYTE - offset
                 temp_tree = tree:add(buff(offset, lenght),"Type: fetch")
-                cmd_params = { "To: ", "Subject: ", "Text: " }
+                cmd_params = { "From: ", "Subject: ", "Text: " }
 
                 offset = offset + SHIFT_BYTE -- posun na "
                 local curr_param = 1
@@ -221,7 +221,7 @@ parse_response = function(buff, pinfo, tree)
                 if buff(offset + SHIFT_BYTE, 1):string() == ")" then
                     tree:add(buff(),"Number of messages: 0")
                 else
-                    cmd_params = { "Message ID: ", "To: ", "Subject: " }
+                    cmd_params = { "Message ID: ", "From: ", "Subject: " }
                     offset = offset + SHIFT_BYTE -- posun na (
 
                     local par_cnt = 1 -- pocet zavorek
@@ -252,7 +252,7 @@ parse_response = function(buff, pinfo, tree)
                                     temp_tree = subtree
                                     offset = offset + SHIFT_BYTE
                                 elseif curr_param == 2 then
-                                    -- to:
+                                    -- from:
                                     offset = offset + (2*SHIFT_BYTE)
                                 end
                                 --  po poslednim parametru
@@ -336,7 +336,7 @@ parse_request = function(buff, pinfo, tree)
         command = "send"
         tree:add(buff(offset, LEN_SEND), "Command: " .. command)
         offset = offset + LEN_SEND
-        cmd_params = { "From token: ", "To: ", "Subject: ", "Text: " }
+        cmd_params = { "From token: ", "From: ", "Subject: ", "Text: " }
 
     elseif buff(offset, LEN_FETCH):string() == "fetch" then
         command = "fetch"

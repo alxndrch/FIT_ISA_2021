@@ -1,8 +1,7 @@
 .PHONY: all clean zip
 CC = g++
-CFLAGS = -std=gnu99 -Wall -Wextra -Werror -pedantic
 
-EXECUTABLE = isa
+EXECUTABLE = client
 
 all: $(EXECUTABLE)
 
