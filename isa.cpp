@@ -30,7 +30,12 @@ using namespace std;
 
 int main(int argc, char *argv[])
 {
-    Params par = {.addr = nullptr, .port = nullptr, .cmd = CMD_INVALID, .help = false};
+    Params par = {
+        nullptr, // addr
+        nullptr, // port
+        CMD_INVALID, // cmd
+        false // help
+    };
     int command_index = 0; // index prikazu v argv
 
     int retval = arg_process(argc, argv, par);
@@ -71,8 +76,6 @@ int arg_process(int argc, char** argv, Params &params)
      * bude nullptr.
      */
     int opt = 0;
-    int prev_opt = opt;
-    int option_index = -1;
     opterr = 0;
 
     struct option long_opt[] = {
@@ -239,8 +242,7 @@ int connect_to_server(Params &params, char **args)
         // neplatna hodnota portu
         cerr << "Port number is not a string\n";
         return ERR;
-    }else if ((errno == ERANGE && (err == LONG_MIN || err == LONG_MAX ))
-             || port < PORT_MIN || port > PORT_MAX){
+    }else if ((errno == ERANGE) || port < PORT_MIN || port > PORT_MAX){
         // hodnota portu je mimo interval
         cerr << "tcp-connect: contract violation\n";
         cerr << "  expected: port-number?\n";
@@ -648,11 +650,12 @@ int unescape_backslash(char *text, int len)
         if (text[i] == '\\'){
             len--;
             memcpy(text+i, text+i+1, len-i+1);
-            if (i < len)
+            if (i < len){
                 if (text[i] == 'n') 
                     text[i] = '\n';
                 else if (text[i] == 't') 
                     text[i] = '\t';
+            }
         }
     }
 
