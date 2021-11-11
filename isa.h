@@ -43,7 +43,6 @@
 /* konstany pro fsm */
 #define MSG_TEXT 20
 #define MSG_ESCAPE_SEQ 21
-#define MSG_NOT_TEXT 22
 #define MSG_START 23
 #define MSG_END 24
 
