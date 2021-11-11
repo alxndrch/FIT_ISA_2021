@@ -5,12 +5,9 @@ EXECUTABLE = client
 
 all: $(EXECUTABLE)
 
-isa: $(EXECUTABLE).o
-	$(CC) -o $@ $^
-
-isa.o: $(EXECUTABLE).cpp
-	$(CC) -c $^
-
+client:
+	$(CC) -o $@ isa.cpp
+ 
 zip:
 	zip $(EXECUTABLE).zip *.cpp *.h Makefile *.lua isa.pcap manual.pdf
 
