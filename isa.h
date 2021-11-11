@@ -159,8 +159,23 @@ int str2int(char* str, int &num);
  */
 void text_fsm(char *str, int &index, int &end_index, int state);
 
+/**
+ * @brief funkce zdvoji vsechny \ v retezci
+ *
+ * @param text retezec
+ * @param len delka retezce
+ * @param ERR pri chybe, jinak SUCC
+ */
 int escape_backslash(char *text, int len);
 
+/**
+ * @brief funkce odstrani jedno \ pokud jsou dve po sobe
+ *        a nahradi podretezec "\n" a "\t" za znak '\n', '\t'
+ *
+ * @param text retezec
+ * @param len delka retezce
+ * @param ERR pri chybe, jinak SUCC
+ */
 int unescape_backslash(char *text, int len);
 
 #endif
