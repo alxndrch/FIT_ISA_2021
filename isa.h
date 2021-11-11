@@ -159,4 +159,8 @@ int str2int(char* str, int &num);
  */
 void text_fsm(char *str, int &index, int &end_index, int state);
 
+int escape_backslash(char *text, int len);
+
+int unescape_backslash(char *text, int len);
+
 #endif

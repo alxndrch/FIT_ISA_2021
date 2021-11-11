@@ -17,10 +17,12 @@
 #include <iostream>
 #include <netdb.h>
 #include <netinet/in.h>
+#include <regex>
 #include <string>
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <unistd.h>
+
 
 #include "isa.h"
 #include "base64.cpp"
@@ -319,6 +321,7 @@ int recv_message(int sockfd, int cmd)
         return ERR;
     }
 
+    unescape_backslash(recv_str, received_len);
 
     // vypis odpovedi
     if (parse_response(cmd, recv_str, received_len) == ERR)
@@ -375,6 +378,11 @@ int build_request(int cmd, char **args, char *request)
         if (access("login-token", F_OK) != -1){
             remove("login-token");
         }
+    }
+
+    if (escape_backslash(request, strlen(request)) == ERR){
+        cerr << "ERROR: Request is too long" << endl;
+        return ERR;
     }
 
     return SUCC;
@@ -551,4 +559,46 @@ void text_fsm(char *str, int &index, int &end_index, int state)
         }
         index++;
     }
+}
+
+int escape_backslash(char *text, int len)
+{
+    int slash_needed = 0;
+    for(int i = 0; i < len; i++)
+        if (text[i] == '\\')
+            slash_needed++;
+
+    if (slash_needed == 0)
+        return SUCC;
+
+    if (slash_needed + len+1 > MSG_MAX_LEN)
+        return ERR;
+
+    for(int i = len; i >= 0 && slash_needed != 0; i--){
+        text[i+slash_needed] = text[i];
+        if (text[i] == '\\'){
+            slash_needed--;
+            text[i+slash_needed] = text[i];
+        }
+    }
+
+    return SUCC;
+}
+
+int unescape_backslash(char *text, int len)
+{
+    char *temp = text;
+    for(int i = 0; i < len;i++){
+        if (text[i] == '\\'){
+            len--;
+            memcpy(text+i, text+i+1, len-i+1);
+            if (i < len)
+                if (text[i] == 'n') 
+                    text[i] = '\n';
+                else if (text[i] == 't') 
+                    text[i] = '\t';
+        }
+    }
+
+    return SUCC;
 }
